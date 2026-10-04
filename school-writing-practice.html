@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="校园里的第一份温暖：英语B级写作专项练习。" />
+    <title>校园里的第一份温暖｜写作练习</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23172f43'/%3E%3Cpath d='M16 18h30v28H16z' fill='none' stroke='%23efb45d' stroke-width='4'/%3E%3Cpath d='M23 27h16M23 35h12' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./writing-styles.css" />
+    <script src="./writing-app.js" defer></script>
+  </head>
+  <body data-page="home">
+    <div class="page-shell">
+      <header class="site-header">
+        <div class="brand"><span class="brand-mark">W</span><span>校园里的第一份温暖</span></div>
+        <span class="header-note">英语 B 级 · 记叙文写作专项</span>
+      </header>
+
+      <main class="entry-grid">
+        <section class="entry-card" aria-labelledby="entry-title">
+          <div class="eyebrow">学生入口</div>
+          <h1 id="entry-title">先填写信息，进入你的专业练习</h1>
+          <p class="lead">课堂完成 5 道填空并查看答案；课后入口随后开放，再完成约 80 词的整段写作。</p>
+          <form id="profile-form" novalidate>
+            <label for="student-name">姓名</label>
+            <input id="student-name" name="name" type="text" autocomplete="name" maxlength="30" placeholder="请输入真实姓名" required />
+            <label for="student-class">班级</label>
+            <select id="student-class" name="class" required>
+              <option value="">请选择班级</option>
+              <option value="26-机车124班">26-机车124班</option>
+              <option value="26-机车125班">26-机车125班</option>
+              <option value="26-城轨信号53班">26-城轨信号53班</option>
+              <option value="26-城轨信号54班">26-城轨信号54班</option>
+              <option value="26-储能技术01班">26-储能技术01班</option>
+            </select>
+            <p id="profile-error" class="form-error" role="alert" hidden></p>
+            <button class="button button-primary" type="submit">进入课堂练习</button>
+          </form>
+          <p class="privacy-note">在线练习会在当前浏览器保存练习进度。换设备或清除浏览器数据后，记录不会自动同步。</p>
+        </section>
+        <aside class="entry-aside" aria-label="练习安排">
+          <div class="aside-topline">写作任务卡</div>
+          <h2>A Warm Moment<br />on Campus</h2>
+          <p>把一次得到帮助的经历，写成有背景、经过和感受的完整故事。</p>
+          <div class="score-track">
+            <div><strong>01</strong><span>课上填空</span><b>5 分</b></div>
+            <div><strong>02</strong><span>课后写作</span><b>5 分</b></div>
+          </div>
+          <div class="total-line"><span>总分</span><strong>10 分</strong></div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>
