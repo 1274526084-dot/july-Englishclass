@@ -123,7 +123,8 @@
     </form>
     <section class="result" id="result" aria-live="polite" aria-labelledby="result-title"><div class="score-circle"><strong id="score">0</strong><span>满分 100</span></div><div><h2 id="result-title">本次得分</h2><p id="result-message"></p></div></section>
   </main>
-  <footer>英语时态练习 · 本地网页，可离线使用</footer>
+  <footer>第二课英语时态练习 · 提交成绩与答案同步到个人及教师档案</footer>
+  <script src="./lesson2-bridge.js?v=20261005" defer></script>
   <script>
     const answers = {
       1:{accepted:['B'],display:'B. are practicing',explanation:'Look 和 now 表示动作正在发生，用现在进行时：are practicing。'},
@@ -157,6 +158,7 @@
         feedback.classList.add('show');
       }
       const score=correct*10;document.getElementById('score').textContent=score;
+      void window.JulyLesson2.submit({ activity: 'tense', answers: cards.map(card => getAnswer(Number(card.dataset.question)).trim()) });
       document.getElementById('result-message').textContent=correct===10?'全部答对！你已经熟练掌握这些时态线索。':'答对 '+correct+' / 10 题。请查看每题下方的解析，修改答案后可再次提交。';
       const result=document.getElementById('result');result.classList.add('show');result.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
     });

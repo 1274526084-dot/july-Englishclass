@@ -339,9 +339,10 @@
         <button class="button secondary" id="restart-button" type="button">重新挑战 ↻</button>
       </div>
     </section>
-    <p class="footer-note">本地离线小游戏 · 答案不会上传</p>
+    <p class="footer-note">第二课课堂练习 · 完成后同步成绩与作答到学习档案</p>
   </main>
 
+  <script src="./lesson2-bridge.js?v=20261005" defer></script>
   <script>
     "use strict";
     const questions = [
@@ -395,6 +396,7 @@
     let score = 0;
     let answered = false;
     let mistakes = [];
+    let roundAnswers = [];
 
     function showScreen(name) {
       for (const id of ["start-screen", "quiz-screen", "result-screen"]) $(id).hidden = id !== name;
@@ -408,6 +410,7 @@
       index = 0;
       score = 0;
       mistakes = [];
+      roundAnswers = [];
       showScreen("quiz-screen");
       showQuestion();
     }
@@ -458,6 +461,7 @@
       answered = true;
       const q = round[index];
       const correct = choice.toLowerCase() === q.answer;
+      roundAnswers.push({ verb: q.verb, answer: choice });
       if (correct) score += 10;
       else mistakes.push({ ...q, chosen: choice });
 
@@ -524,6 +528,7 @@
     }
 
     function showResult() {
+      void window.JulyLesson2.submit({ activity: "verbs", answers: roundAnswers });
       showScreen("result-screen");
       $("final-score").textContent = String(score);
       $("correct-count").textContent = `答对 ${score / 10} / ${round.length} 题`;

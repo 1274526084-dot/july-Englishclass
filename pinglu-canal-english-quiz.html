@@ -47,6 +47,7 @@
     </div>
   </main>
   <footer class="footer">平陆运河英语时态练习 · 教学用途</footer>
+  <script src="./lesson2-bridge.js?v=20261005" defer></script>
   <script>
     const inputs = [...document.querySelectorAll('.answer')];
     const counter = document.getElementById('counter');
@@ -82,6 +83,7 @@
       result.innerHTML = `<h3>答对 ${score} / 10 题</h3><p>${score === 10 ? '全部正确！' : '橙色标出的题目可以对照下面的解析再看一遍。'}</p><div class="key">${inputs.map((input,index) => `<div><strong>${index + 1}. ${input.dataset.answer}</strong> · ${labels[index]}<br>${explanations[index]}</div>`).join('')}</div>`;
       result.hidden = false;
       result.scrollIntoView({behavior:'smooth',block:'nearest'});
+      void window.JulyLesson2.submit({ activity: 'pinglu', answers: inputs.map(input => input.value.trim()) });
     });
     document.getElementById('reset').addEventListener('click', () => { inputs.forEach(input => {input.value=''; input.classList.remove('correct','incorrect'); input.removeAttribute('aria-invalid');}); result.hidden=true; updateCount(); inputs[0].focus(); });
   </script>

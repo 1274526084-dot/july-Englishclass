@@ -128,9 +128,23 @@ function readJSON(key, fallback) {
 }
 function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 function stateKey(profile, major) { return `warm-campus-writing-v1:${profile.className}:${profile.name}:${major}`; }
-function routeForClass(className) { return TASKS[CLASS_TO_MAJOR[className]]?.page; }
+function majorForClass(className) { return CLASS_TO_MAJOR[className] || (/储能/.test(className) ? 'energy' : /信号/.test(className) ? 'signal' : /机车/.test(className) ? 'train' : ''); }
+function routeForClass(className) { return TASKS[majorForClass(className)]?.page; }
 
 function initHome() {
+  const identity = window.JulyLesson2.identity();
+  if (identity) {
+    const profile = { name: identity.student.name, className: identity.student.className };
+    saveJSON(PROFILE_KEY, profile);
+    const route = routeForClass(profile.className);
+    if (route) { window.location.replace(route); return; }
+    const form = document.getElementById('profile-form'); form.replaceChildren();
+    document.getElementById('entry-title').textContent = profile.name + '，请选择一个专业写作场景';
+    Object.entries(TASKS).forEach(([major, task]) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-primary'; button.style.margin = '8px'; button.textContent = task.scene;
+      button.onclick = () => { saveJSON(PROFILE_KEY, { ...profile, writingMajor: major }); location.href = task.page; }; form.appendChild(button);
+    }); return;
+  }
   const form = document.getElementById("profile-form");
   const nameInput = document.getElementById("student-name");
   const classInput = document.getElementById("student-class");
@@ -179,7 +193,7 @@ function gradeEssay(task, text) {
     task.essayChecks.ending(clean),
     words.length >= 65 && words.length <= 115 && matchedFrames.length >= 2 && pastForms.length >= 3,
   ];
-  const score = noFrames ? 0 : checks.filter(Boolean).length;
+  const score = checks.filter(Boolean).length;
   return { score, checks, wordCount: words.length, matchedFrames, noFrames, pastCount: pastForms.length };
 }
 
@@ -187,7 +201,7 @@ function renderScaffoldList(state, editable) {
   if (editable) {
     return `<section class="scaffold-panel" id="scaffold-panel"><h3>句子支架：先填，再写整段</h3><p>用自己的信息补完整句子。课后写作时可参考这些句型，把故事连成一个自然的段落。</p><div class="scaffold-list">${SCAFFOLDS.map((item, i) => `<div class="scaffold-row"><label for="scaffold-${i}">${i + 1}. ${item.name}</label><small>${escapeHTML(item.frame)}</small><input id="scaffold-${i}" type="text" data-scaffold="${i}" value="${escapeHTML((state.scaffolds || [])[i] || "")}" placeholder="提示：${escapeHTML(TASKS[document.body.dataset.major].scaffoldHints[i])}" maxlength="180"/></div>`).join("")}</div></section>`;
   }
-  return `<aside class="scaffold-side"><h3>你填过的句子支架</h3><p>把合适的句子放进正文，并补上必要的连接与细节。</p><ol>${SCAFFOLDS.map((item, i) => `<li>${escapeHTML(item.frame)}${(state.scaffolds || [])[i] ? `<span class="filled">你写的：${escapeHTML(state.scaffolds[i])}</span>` : ""}</li>`).join("")}</ol><div class="rubric-preview">评分会核对故事信息、经过、结果与感受。请使用至少一个提供的句型；完全不使用会按本次练习规则标注“AI 生成”，作文记 0 分。该规则不能证明实际使用了 AI，可请老师复核。</div></aside>`;
+  return `<aside class="scaffold-side"><h3>你填过的句子支架</h3><p>把合适的句子放进正文，并补上必要的连接与细节。</p><ol>${SCAFFOLDS.map((item, i) => `<li>${escapeHTML(item.frame)}${(state.scaffolds || [])[i] ? `<span class="filled">你写的：${escapeHTML(state.scaffolds[i])}</span>` : ""}</li>`).join("")}</ol><div class="rubric-preview">评分会核对故事信息、经过、结果与感受。请使用至少一个提供的句型；未使用支架时，请补充合适的句型。老师会结合原文复核评分。</div></aside>`;
 }
 
 function renderQuizResult(task, state) {
@@ -204,7 +218,7 @@ function renderEssayResult(task, state) {
   if (!state.essayResult) return "";
   const result = state.essayResult;
   const descriptions = [...task.evidence, "表达：65—115 词、至少 2 个指定句型、过去时动词不少于 3 处"];
-  return `<section class="result-card" id="essay-result" aria-live="polite"><div class="result-head"><h3>课后写作成绩</h3><div class="score-badge">${result.score} / 5 分</div></div>${result.noFrames ? `<div class="ai-flag"><strong>按本练习规则标注：AI 生成，作文 0 分。</strong><br/>判定依据：正文中未检出任何提供的句型。这是课堂评分规则，不能单独证明实际使用了 AI；如有异议，请向老师展示写作草稿。</div>` : ""}<div class="grade-list">${descriptions.map((desc, i) => `<div class="grade-item"><span>${escapeHTML(desc)}<small>${i === 4 ? `实际 ${result.wordCount} 词；检出 ${result.matchedFrames.length} 个指定句型；过去时词形 ${result.pastCount} 处。` : result.checks[i] ? "正文中检出了对应信息。" : "正文中缺少可识别的对应信息，可请老师复核表达。"}</small></span><strong>${result.noFrames ? "0（规则归零）" : result.checks[i] ? "1 分" : "0 分"}</strong></div>`).join("")}</div><p class="helper-copy" style="margin:16px 0 0">句型识别：${result.matchedFrames.length ? result.matchedFrames.map(escapeHTML).join("；") : "无"}。以上为本地规则辅助评分，教师可结合实际表达复核。</p><div class="sample-answer"><h4>参考写法（提交后展示）</h4><p>${escapeHTML(task.sample)}</p></div></section><section class="total-card" aria-label="总分评定"><h3>本次练习总分</h3><div class="total-grid"><div><span>课堂填空</span><strong>${state.quiz.score} / 5</strong></div><div><span>课后写作</span><strong>${result.score} / 5</strong></div><div><span>合计</span><strong>${state.quiz.score + result.score} / 10</strong></div></div><div class="form-actions"><span class="helper-copy" style="color:#d5e1e7">姓名：${escapeHTML(readJSON(PROFILE_KEY, {}).name)}　班级：${escapeHTML(readJSON(PROFILE_KEY, {}).className)}</span><button class="button button-secondary" id="print-score" type="button">打印评分结果</button></div></section>`;
+  return `<section class="result-card" id="essay-result" aria-live="polite"><div class="result-head"><h3>课后写作成绩</h3><div class="score-badge">${result.score} / 5 分</div></div>${result.noFrames ? `<div class="ai-flag"><strong>未检出提供的句型，请补充句子支架。</strong><br/>自动评分按故事信息和表达要求给分，老师可以查看原文进行复核。</div>` : ""}<div class="grade-list">${descriptions.map((desc, i) => `<div class="grade-item"><span>${escapeHTML(desc)}<small>${i === 4 ? `实际 ${result.wordCount} 词；检出 ${result.matchedFrames.length} 个指定句型；过去时词形 ${result.pastCount} 处。` : result.checks[i] ? "正文中检出了对应信息。" : "正文中缺少可识别的对应信息，可请老师复核表达。"}</small></span><strong>${result.checks[i] ? "1 分" : "0 分"}</strong></div>`).join("")}</div><p class="helper-copy" style="margin:16px 0 0">句型识别：${result.matchedFrames.length ? result.matchedFrames.map(escapeHTML).join("；") : "无"}。以上为规则辅助评分，教师可结合实际表达复核。</p><div class="sample-answer"><h4>参考写法（提交后展示）</h4><p>${escapeHTML(task.sample)}</p></div></section><section class="total-card" aria-label="总分评定"><h3>本次练习总分</h3><div class="total-grid"><div><span>课堂填空</span><strong>${state.quiz.score} / 5</strong></div><div><span>课后写作</span><strong>${result.score} / 5</strong></div><div><span>合计</span><strong>${state.quiz.score + result.score} / 10</strong></div></div><div class="form-actions"><span class="helper-copy" style="color:#d5e1e7">姓名：${escapeHTML(readJSON(PROFILE_KEY, {}).name)}　班级：${escapeHTML(readJSON(PROFILE_KEY, {}).className)}</span><button class="button button-secondary" id="print-score" type="button">打印评分结果</button></div></section>`;
 }
 
 function renderHomework(task, state) {
@@ -216,22 +230,25 @@ function renderHomework(task, state) {
 function initPractice() {
   const major = document.body.dataset.major;
   const task = TASKS[major];
-  const profile = readJSON(PROFILE_KEY, null);
-  if (!task || !profile || CLASS_TO_MAJOR[profile.className] !== major) {
+  const identity = window.JulyLesson2.identity();
+  const stored = readJSON(PROFILE_KEY, null);
+  const profile = identity ? { name: identity.student.name, className: identity.student.className, writingMajor: stored?.name === identity.student.name && stored?.className === identity.student.className ? stored.writingMajor : '' } : null;
+  if (!task || !profile || (majorForClass(profile.className) || profile.writingMajor) !== major) {
     window.location.replace("./school-writing-practice.html");
     return;
   }
+  saveJSON(PROFILE_KEY, profile);
   const key = stateKey(profile, major);
   let state = readJSON(key, { quizAnswers: ["", "", "", "", ""], scaffolds: ["", "", "", "", ""], essay: "" });
   const app = document.getElementById("app");
 
   function persist() { saveJSON(key, state); }
   function render() {
-    app.innerHTML = `<div class="page-shell practice-shell"><header class="site-header"><div class="brand"><span class="brand-mark">W</span><span>校园里的第一份温暖</span></div><span class="header-note">英语 B 级 · 记叙文写作专项</span></header><div class="practice-header"><div class="student-meta"><span class="student-pill">${escapeHTML(profile.name)}</span><span class="student-pill">${escapeHTML(profile.className)}</span></div><button class="text-button" type="button" id="switch-student">更换学生</button></div><section class="context-banner"><div class="context-copy"><div class="eyebrow">${escapeHTML(task.major)} · 写作练习</div><h1>A Warm Moment on Campus</h1><p>${escapeHTML(task.scene)}　｜　课上 5 分 + 课后 5 分</p></div><img class="context-photo" src="${task.image}" alt="${escapeHTML(task.scene)}的实训情境照片" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'context-fallback'}))"/></section><nav class="step-nav" aria-label="练习步骤"><button type="button" class="step-tab ${currentView === "class" ? "active" : ""}" id="tab-class" aria-current="${currentView === "class" ? "step" : "false"}"><span class="step-number">1</span><span>课堂填空<small>${state.quiz ? `已得 ${state.quiz.score} / 5 分` : "完成后公布答案"}</small></span></button><button type="button" class="step-tab ${currentView === "homework" ? "active" : ""}" id="tab-homework" ${state.quiz ? "" : "disabled"} aria-current="${currentView === "homework" ? "step" : "false"}"><span class="step-number">2</span><span>课后写作<small>${state.quiz ? state.essayResult ? `已得 ${state.essayResult.score} / 5 分` : "入口已开放" : "完成课堂填空后开放"}</small></span></button></nav>${currentView === "homework" && state.quiz ? renderHomework(task, state) : renderClass(task, state)}<footer class="site-footer">课堂练习 · 分数与草稿保存在当前浏览器中 · 配图：<a href="${task.photoCredit.url}" target="_blank" rel="noopener noreferrer">${escapeHTML(task.photoCredit.name)}</a></footer></div>`;
+    app.innerHTML = `<div class="page-shell practice-shell"><header class="site-header"><div class="brand"><span class="brand-mark">W</span><span>校园里的第一份温暖</span></div><span class="header-note">英语 B 级 · 记叙文写作专项</span></header><div class="practice-header"><div class="student-meta"><span class="student-pill">${escapeHTML(profile.name)}</span><span class="student-pill">${escapeHTML(profile.className)}</span></div><button class="text-button" type="button" id="switch-student">更换学生</button></div><section class="context-banner"><div class="context-copy"><div class="eyebrow">${escapeHTML(task.major)} · 写作练习</div><h1>A Warm Moment on Campus</h1><p>${escapeHTML(task.scene)}　｜　课上 5 分 + 课后 5 分</p></div><img class="context-photo" src="${task.image}" alt="${escapeHTML(task.scene)}的实训情境照片" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'context-fallback'}))"/></section><nav class="step-nav" aria-label="练习步骤"><button type="button" class="step-tab ${currentView === "class" ? "active" : ""}" id="tab-class" aria-current="${currentView === "class" ? "step" : "false"}"><span class="step-number">1</span><span>课堂填空<small>${state.quiz ? `已得 ${state.quiz.score} / 5 分` : "完成后公布答案"}</small></span></button><button type="button" class="step-tab ${currentView === "homework" ? "active" : ""}" id="tab-homework" ${state.quiz ? "" : "disabled"} aria-current="${currentView === "homework" ? "step" : "false"}"><span class="step-number">2</span><span>课后写作<small>${state.quiz ? state.essayResult ? `已得 ${state.essayResult.score} / 5 分` : "入口已开放" : "完成课堂填空后开放"}</small></span></button></nav>${currentView === "homework" && state.quiz ? renderHomework(task, state) : renderClass(task, state)}<footer class="site-footer">课堂练习 · 草稿自动保存，提交内容同步至教师档案 · 配图：<a href="${task.photoCredit.url}" target="_blank" rel="noopener noreferrer">${escapeHTML(task.photoCredit.name)}</a></footer></div>`;
     bind();
   }
   function bind() {
-    document.getElementById("switch-student").addEventListener("click", () => { window.location.href = "./school-writing-practice.html"; });
+    document.getElementById("switch-student").addEventListener("click", () => { window.JulyLesson2.changeStudent(); });
     document.getElementById("tab-class").addEventListener("click", () => { currentView = "class"; render(); window.scrollTo(0, 0); });
     document.getElementById("tab-homework").addEventListener("click", () => { if (state.quiz) { currentView = "homework"; render(); window.scrollTo(0, 0); } });
     const quizForm = document.getElementById("quiz-form");
@@ -246,6 +263,7 @@ function initPractice() {
         }
         state.quizAnswers = values;
         state.quiz = { ...gradeQuiz(task, values), submittedAt: new Date().toISOString() };
+        void window.JulyLesson2.submit({ activity: "writingClass", major, answers: values }).then(queued => { if (queued) { state.archiveQuizQueued = true; persist(); } });
         persist(); render(); document.getElementById("class-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
@@ -270,13 +288,19 @@ function initPractice() {
         }
         state.essay = text;
         state.essayResult = { ...gradeEssay(task, text), submittedAt: new Date().toISOString() };
+        void window.JulyLesson2.submit({ activity: "writingEssay", major, essay: text }).then(queued => { if (queued) { state.archiveEssayQueued = true; persist(); } });
         persist(); render(); document.getElementById("essay-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
     document.getElementById("print-score")?.addEventListener("click", () => window.print());
   }
   render();
+  if (state.quiz && !state.archiveQuizQueued) void window.JulyLesson2.submit({ activity: 'writingClass', major, answers: state.quizAnswers }).then(queued => { if (queued) { state.archiveQuizQueued = true; persist(); } });
+  if (state.essayResult && !state.archiveEssayQueued) void window.JulyLesson2.submit({ activity: 'writingEssay', major, essay: state.essay }).then(queued => { if (queued) { state.archiveEssayQueued = true; persist(); } });
 }
 
-if (document.body.dataset.page === "home") initHome();
-if (document.body.dataset.page === "practice") initPractice();
+window.JulyLesson2.ready.then(identity => {
+  if (!identity) return;
+  if (document.body.dataset.page === 'home') initHome();
+  if (document.body.dataset.page === 'practice') initPractice();
+});
