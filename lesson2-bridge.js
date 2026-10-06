@@ -26,7 +26,7 @@
   }
   function lease() { var value = read(KEY, null); return value && value.expiresAt > Date.now() && value.student && /^[a-f0-9]{64}$/.test(value.token) ? value : null; }
   function login() { location.href = archive + '?next=' + encodeURIComponent(location.pathname + location.search); }
-  function changeStudent() { localStorage.removeItem(KEY); localStorage.removeItem('july.course.student.v1'); sessionStorage.removeItem('july.archive.student-session.v1'); localStorage.removeItem('july.archive.student-session.v1'); login(); }
+  function changeStudent() { localStorage.removeItem(KEY); localStorage.removeItem('july.course.student.v1'); sessionStorage.removeItem('july.archive.student-session.v1'); localStorage.removeItem('july.archive.student-session.v1'); sessionStorage.removeItem('july.archive.access-request.v1'); localStorage.removeItem('july.archive.access-request.v1'); login(); }
   function id() { var bytes = new Uint8Array(16); crypto.getRandomValues(bytes); return Array.prototype.map.call(bytes, function(v) {return v.toString(16).padStart(2,'0');}).join(''); }
   async function request(action, data) {
     var current = lease();
@@ -57,11 +57,11 @@
   }
   function gate(message) {
     var gate=document.createElement('section');gate.className='jl2-gate';gate.innerHTML='<div><small>JULY · 第二课学习站</small><h2>确认一次身份，连续完成两节课</h2><p></p><button type="button">确认姓名与班级 →</button></div>';
-    gate.querySelector('p').textContent=message || '完成档案馆的身份确认后，本浏览器2小时内可直接切换第一课和第二课。每次提交的成绩与作文同步给老师。';
+    gate.querySelector('p').textContent=message || '填写姓名与班级即可开始课堂任务，2小时内可连续切换。新设备的作答先独立保存，教师课后核对本人后才关联历史档案。';
     gate.querySelector('button').onclick=login;document.body.appendChild(gate);
   }
   function show(message, saved) {
-    box.hidden=false;box.replaceChildren();var title=document.createElement('strong');title.textContent=saved?'✓ 已同步到教师和个人档案':'成绩保存状态';box.appendChild(title);
+    box.hidden=false;box.replaceChildren();var title=document.createElement('strong');title.textContent=saved?(outcome && outcome.pendingVerification?'✓ 已保存 · 身份待教师课后确认':'✓ 已同步到教师和个人档案'):'成绩保存状态';box.appendChild(title);
     var p=document.createElement('p');p.textContent=message;box.appendChild(p);
     var actions=document.createElement('div');actions.className='actions';box.appendChild(actions);
     var retry=document.createElement('button');retry.textContent='重新同步';retry.disabled=busy;retry.onclick=function(){void flush();};if(!saved)actions.appendChild(retry);
@@ -88,7 +88,7 @@
   }
   var ready=(async function(){
     identity=lease();if(!identity){gate();return null;}
-    try{var result=await request('courseSession');identity.student=Object.assign({},identity.student,result.student);identity.expiresAt=Math.min(identity.expiresAt,result.expiresAt);write(KEY,identity);renderBar();void flush();return identity;}
+    try{var result=await request('courseSession');identity.student=Object.assign({},identity.student,result.student);identity.verified=result.verified!==false;identity.expiresAt=Math.min(identity.expiresAt,result.expiresAt);write(KEY,identity);renderBar();void flush();return identity;}
     catch(error){if(error.status===401){localStorage.removeItem(KEY);gate('身份已失效，请重新确认。');return null;}gate('暂时无法连接档案服务。请检查网络后刷新；已有答案保存在本机。');return null;}
   })();
   window.JulyLesson2={ready:ready,submit:async function(payload){
