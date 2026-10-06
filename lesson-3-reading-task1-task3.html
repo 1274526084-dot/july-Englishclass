@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172d43">
+  <title>第三课阅读测试 · B级阅读 Task 1 & Task 3</title>
+  <style>
+    :root{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#1b3147;background:#f5f8f7;--ink:#1b3147;--muted:#667987;--navy:#172d43;--teal:#1b7b77;--line:#dce7e7;--green:#167455;--red:#b94e49}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:radial-gradient(circle at 90% 6%,#dcebea,transparent 34%),#f5f8f7}
+    button,input{font:inherit}
+    button{cursor:pointer}
+    .wrap{width:min(1050px,calc(100% - 32px));margin:auto}
+    .hero{background:var(--navy);color:#fff;padding:33px 0 39px;position:relative;overflow:hidden}
+    .hero::after{content:"READ";position:absolute;right:2%;bottom:-63px;color:#ffffff0a;font:bold 180px Georgia,serif;pointer-events:none}
+    .hero-inner{position:relative;z-index:1}
+    .eyebrow{color:#b8e0dd;font-size:13px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+    h1{font-size:clamp(29px,5vw,48px);line-height:1.15;letter-spacing:-.045em;margin:12px 0 10px}
+    .hero p{color:#dce7ed;line-height:1.7;margin:0;max-width:720px;font-size:15px}
+    .nav{display:flex;flex-wrap:wrap;gap:9px;margin-top:21px}
+    .nav a{border:1px solid #ffffff48;color:#e9f2f4;text-decoration:none;padding:8px 11px;border-radius:9px;font-size:13px;font-weight:750}
+    .nav a:hover,.nav a:focus-visible{border-color:white}
+    .nav a.current{background:white;color:var(--navy)}
+    main{padding:26px 0 58px}
+    .overview{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:21px}
+    .chip{background:#e8f2f1;color:#215f64;border:1px solid #c9e2dd;border-radius:999px;padding:7px 11px;font-size:13px;font-weight:750}
+    .card{background:#fff;border:1px solid var(--line);border-radius:19px;box-shadow:0 12px 34px #1733480d;margin-bottom:20px;overflow:hidden}
+    .card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:21px 25px 16px;border-bottom:1px solid #e9eeee}
+    .card-head h2{font-size:21px;margin:0}
+    .card-head span{font-size:12px;font-weight:750;color:var(--teal);white-space:nowrap}
+    .passage{padding:23px 30px 29px;font-family:Georgia,"Times New Roman",serif;font-size:18px;line-height:1.83;color:#273b4d}
+    .passage h3{font-size:26px;text-align:center;line-height:1.3;margin:1px 0 20px;color:#183d53}
+    .passage p{margin:0 0 16px}
+    .passage p:last-child{margin-bottom:0}
+    .directions{margin:0;padding:19px 25px 9px;color:var(--muted);font-size:14px;line-height:1.7}
+    .questions{padding:5px 25px 25px;display:grid;gap:14px}
+    .question{border:1px solid #e1e9e9;border-radius:13px;padding:16px;background:#fff}
+    .q-title{font:700 17px/1.55 Georgia,"Times New Roman",serif;margin:0 0 11px;color:#1a354a}
+    .q-title b{font:850 13px/1 system-ui,sans-serif;background:#e8f0ef;color:#236c69;border-radius:7px;padding:6px 8px;margin-right:6px}
+    .choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .choice{display:flex;gap:9px;align-items:flex-start;border:1px solid #e1e9eb;border-radius:10px;padding:10px 11px;line-height:1.4;font-size:14px;cursor:pointer;min-height:45px}
+    .choice:hover{background:#f5faf9;border-color:#a8cfca}
+    .choice input{margin:2px 0 0;accent-color:var(--teal);flex:none}
+    .choice.is-right{background:#eaf7ef;border-color:#83c6a5;color:#145d45}
+    .choice.is-wrong{background:#fff1ef;border-color:#e3ada7;color:#a13e3a}
+    .explanation{display:none;color:#466475;background:#f3f8f8;border-left:3px solid #5fa8a0;padding:10px 12px;margin:12px 0 0;font-size:13px;line-height:1.65}
+    #mcqs.graded .explanation{display:block}
+    .summary{padding:5px 25px 24px}
+    .summary-box{background:#fbfcfb;border:1px solid #e2e9e8;border-radius:13px;padding:19px 20px;font:17px/2.28 Georgia,"Times New Roman",serif;color:#263d4e}
+    .summary-box p{margin:0}
+    .blank{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;white-space:nowrap;font-family:system-ui,sans-serif}
+    .blank-num{font-size:12px;font-weight:900;color:#287d78}
+    .blank input{width:177px;max-width:42vw;height:36px;padding:4px 8px;border:1px solid #a9c7c8;border-radius:7px;background:white;color:#18384a;font-size:14px}
+    .blank input:focus-visible,.choice:focus-within,button:focus-visible,a:focus-visible{outline:3px solid #eea492;outline-offset:2px}
+    .blank input.is-right{background:#eaf7ef;border-color:#7fbd9d;color:#145d45}
+    .blank input.is-wrong{background:#fff1ef;border-color:#df9e98;color:#a13e3a}
+    .answer-list{display:none;margin:16px 0 0;padding:0;list-style:none;gap:7px}
+    #summary.graded .answer-list{display:grid}
+    .answer-list li{padding:9px 11px;background:#f3f8f8;border-radius:8px;font-size:13px;line-height:1.55;color:#435b69}
+    .answer-list strong{color:#1e5f60}
+    .actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:22px 0 9px}
+    .primary,.secondary{min-height:46px;border-radius:10px;padding:11px 18px;font-weight:800}
+    .primary{border:0;background:#de6049;color:white;box-shadow:0 5px 13px #de604933}
+    .primary:hover{background:#c64f3b}
+    .secondary{border:1px solid #bdd1d3;background:white;color:#23657b}
+    .secondary:hover{background:#eff7f7}
+    .message{font-size:13px;color:var(--red);font-weight:800;margin:0}
+    .result{display:none;background:#e8f5ef;border:1px solid #afd8c2;border-radius:15px;padding:17px 21px;margin:0 0 18px;color:#195843;align-items:center;justify-content:space-between;gap:13px}
+    .result.show{display:flex}
+    .result h2{margin:0 0 4px;font-size:20px}
+    .result p{margin:0;font-size:13px;line-height:1.5}
+    .result strong{font-size:29px;white-space:nowrap;font-variant-numeric:tabular-nums}
+    footer{padding:0 0 30px;color:#697d8b;font-size:12px;line-height:1.6}
+    @media(max-width:680px){.passage{font-size:16px;line-height:1.7;padding:20px}.passage h3{font-size:22px}.card-head{padding:18px}.directions{padding:17px 18px 8px}.questions,.summary{padding-left:18px;padding-right:18px}.choices{grid-template-columns:1fr}.summary-box{font-size:15px;line-height:2.45;padding:15px}.blank input{width:144px}.result.show{align-items:flex-start}}
+    @media print{body{background:white}.hero{background:white;color:#111;padding:9px 0}.hero p,.eyebrow{color:#333}.hero::after,.nav,.actions,.result,footer{display:none!important}main{padding:0}.card{box-shadow:none;break-inside:avoid}.question{break-inside:avoid}}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap hero-inner">
+      <div class="eyebrow">Lesson 03 · Reading Practice</div>
+      <h1>第三课 · B级阅读练习</h1>
+      <p>阅读《The Timeless Wisdom in Mottoes》，完成 Task 1 选择题和 Task 3 摘要填空。</p>
+      <nav class="nav" aria-label="第三课练习"><a href="./lesson-3.html">第三次课首页</a><a href="./lesson-3-vocabulary-matching.html">词组匹配一</a><a href="./lesson-3-vocabulary-matching-2.html">词组匹配二</a><a class="current" href="./lesson-3-reading-task1-task3.html" aria-current="page">阅读练习</a></nav>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="overview"><span class="chip">Task 1 · 5道ABCD选择</span><span class="chip">Task 3 · 5处填空</span><span class="chip">每空不超过3词</span><span class="chip">提交后显示答案与解析</span></div>
+    <section class="card" id="passage" aria-labelledby="passageHead">
+      <div class="card-head"><h2 id="passageHead">阅读材料</h2><span>Reading Passage</span></div>
+      <article class="passage" lang="en">
+        <h3>The Timeless Wisdom in Mottoes</h3>
+        <p>When freshmen first step onto campus, they will inevitably pause in front of the stone stele bearing the college motto and take photos. And surely, these photos will soon be posted on their WeChat Moments. Besides all the likes they get, friends and family may probably ask, “What do these few words really mean?”</p>
+        <p>Indeed, a college motto is often short and concise. I can still vividly recall my first day on campus. At the welcome ceremony, our president presented the college motto to us as our first precious gift. “Seeking Truth” embodied the spirit of some pioneering scholars from our college. In the early years of the People’s Republic of China, they returned from overseas, hearts burning with passion to build a strong nation. They devoted their entire lives to seeking truth. Such role models never fail to inspire the younger generations. Our president also explained the meaning of “Persistence”, which holds the story of a group of engineering faculty members. They kept working in a modest laboratory, testing each set of data thousands of times. The mechanical parts they developed made significant contributions to our country’s space industry.</p>
+        <p>It is true that most mottoes draw on classic texts and the wisdom of sages, yet they transcend history, serving as guiding principles for our actions today and lighting the way toward our future. When we sit beside a frustrated classmate and listen patiently, we embody “Empathy”; when we listen to different voices in a debate, we practice “Inclusiveness”; when we question flawed data that supports a desired result, we uphold “Integrity.” In our future life, when we meet setbacks, the word “Mission” will help us resist the urge to “lie flat”; and “Renewal” will encourage us to keep moving forward every day.</p>
+        <p>Every such act adds warmth and meaning to these words carved in stone. So let us often reflect on the deep meaning behind these concise mottoes and put them into practice. They will guide us forward, and in doing so, we will become part of their stories.</p>
+      </article>
+    </section>
+    <section class="result" id="result" role="status" aria-live="polite"><div><h2 id="resultTitle">批改完成</h2><p id="resultDetail"></p></div><strong id="totalScore"></strong></section>
+    <section class="card" aria-labelledby="task1Head">
+      <div class="card-head"><h2 id="task1Head">Task 1 · 阅读理解</h2><span>5题 × 2分</span></div>
+      <p class="directions">Read the passage and choose the best answer from A, B, C and D. 根据文章选择最佳答案。</p>
+      <div class="questions" id="mcqs"></div>
+    </section>
+    <section class="card" aria-labelledby="task3Head">
+      <div class="card-head"><h2 id="task3Head">Task 3 · 摘要填空</h2><span>5题 × 1分</span></div>
+      <p class="directions">Complete the summary with words from the passage. Write no more than THREE words in each blank. 用原文词语填空，每空不超过3词。</p>
+      <div class="summary" id="summary">
+        <div class="summary-box" lang="en"><p>On their first day, many freshmen stop at a stone stele to take <span class="blank"><span class="blank-num">(1)</span><input aria-label="第1空" autocomplete="off" spellcheck="false"></span>. “Seeking Truth” reflects the spirit of some <span class="blank"><span class="blank-num">(2)</span><input aria-label="第2空" autocomplete="off" spellcheck="false"></span> who returned from overseas. Engineering faculty members developed mechanical parts that contributed to the country’s <span class="blank"><span class="blank-num">(3)</span><input aria-label="第3空" autocomplete="off" spellcheck="false"></span>. Students show empathy when they listen patiently to <span class="blank"><span class="blank-num">(4)</span><input aria-label="第4空" autocomplete="off" spellcheck="false"></span>. The writer asks us to reflect on mottoes and put them into <span class="blank"><span class="blank-num">(5)</span><input aria-label="第5空" autocomplete="off" spellcheck="false"></span>.</p></div>
+        <ol class="answer-list" id="blankFeedback"></ol>
+      </div>
+    </section>
+    <div class="actions"><button class="primary" type="button" id="submit">提交并查看答案</button><button class="secondary" type="button" id="retry">重新作答</button><a class="secondary" href="#passage" style="text-decoration:none;display:inline-flex;align-items:center">返回原文 ↑</a><p class="message" id="message" role="alert"></p></div>
+  </main>
+  <footer class="wrap">根据所提供的《The Timeless Wisdom in Mottoes》编写，用于课堂练习；非考试真题。</footer>
+  <script>
+    const mcqData = [
+      {q:'What do freshmen often do in front of the stone stele?', options:['Read classic texts.','Take photos.','Test data.','Hold a debate.'], answer:1, why:'第一段写到新生会在刻有校训的石碑前驻足并拍照。'},
+      {q:'What did “Seeking Truth” embody?', options:['The spirit of pioneering scholars.','The results of a debate.','The design of a laboratory.','The meaning of WeChat likes.'], answer:0, why:'第二段说明“Seeking Truth”体现了本校开拓性学者的精神。'},
+      {q:'What did the engineering faculty members develop?', options:['A new college motto.','A WeChat program.','Mechanical parts.','Classic texts.'], answer:2, why:'第二段写到教师们研制的 mechanical parts 为航天事业作出了贡献。'},
+      {q:'Which action shows “Inclusiveness” in the passage?', options:['Listening to different voices in a debate.','Posting photos on WeChat.','Ignoring a classmate’s feelings.','Accepting flawed data without question.'], answer:0, why:'第三段直接把“倾听辩论中的不同声音”与 Inclusiveness 联系起来。'},
+      {q:'What does the writer encourage readers to do?', options:['Memorize only the words on the stele.','Take more photos on campus.','Learn how to build mechanical parts.','Think about mottoes and put them into practice.'], answer:3, why:'末段建议读者思考校训的深意，并在行动中践行。'}
+    ];
+    const blanks = [
+      {answer:'photos', why:'第一段原文：take photos。'},
+      {answer:'pioneering scholars', why:'第二段原文：the spirit of some pioneering scholars。'},
+      {answer:'space industry', why:'第二段原文：our country’s space industry。'},
+      {answer:'a frustrated classmate', why:'第三段原文：sit beside a frustrated classmate and listen patiently。'},
+      {answer:'practice', why:'末段原文：put them into practice。'}
+    ];
+    const mcqs = document.getElementById('mcqs');
+    const result = document.getElementById('result');
+    const message = document.getElementById('message');
+    const blankInputs = [...document.querySelectorAll('.blank input')];
+    let graded = false;
+
+    function renderQuestions(){
+      mcqs.classList.remove('graded');
+      mcqs.replaceChildren();
+      mcqData.forEach((item,i)=>{
+        const box=document.createElement('div'); box.className='question';
+        const title=document.createElement('h3'); title.className='q-title'; title.innerHTML=`<b>${i+1}</b>${item.q}`;
+        const choices=document.createElement('div'); choices.className='choices';
+        item.options.forEach((choice,j)=>{
+          const label=document.createElement('label'); label.className='choice';
+          const radio=document.createElement('input'); radio.type='radio'; radio.name=`q${i}`; radio.value=String(j); radio.setAttribute('aria-label',`${'ABCD'[j]}. ${choice}`);
+          const text=document.createElement('span'); text.textContent=`${'ABCD'[j]}. ${choice}`;
+          label.append(radio,text); choices.append(label);
+        });
+        const explanation=document.createElement('p'); explanation.className='explanation'; explanation.textContent=`答案 ${'ABCD'[item.answer]}。${item.why}`;
+        box.append(title,choices,explanation); mcqs.append(box);
+      });
+    }
+    function normalize(value){return value.trim().toLowerCase().replace(/[.,!?;:“”"']/g,'').replace(/\s+/g,' ')}
+    function wordCount(value){const trimmed=value.trim();return trimmed?trimmed.split(/\s+/).length:0}
+
+    document.getElementById('submit').addEventListener('click',()=>{
+      if(graded)return;
+      for(let i=0;i<mcqData.length;i++){
+        if(!document.querySelector(`input[name="q${i}"]:checked`)){
+          message.textContent=`请选择第 ${i+1} 道选择题的答案。`;
+          document.querySelector(`input[name="q${i}"]`).focus();
+          return;
+        }
+      }
+      for(let i=0;i<blankInputs.length;i++){
+        const count=wordCount(blankInputs[i].value);
+        if(count===0){message.textContent=`请填写第 ${i+1} 个空。`;blankInputs[i].focus();return}
+        if(count>3){message.textContent=`第 ${i+1} 个空超过3个词，请修改。`;blankInputs[i].focus();return}
+      }
+      graded=true;message.textContent='';
+      let mcqCorrect=0,blankCorrect=0;
+      [...mcqs.children].forEach((box,i)=>{
+        const radios=[...box.querySelectorAll('input[type="radio"]')];
+        const selected=radios.findIndex(radio=>radio.checked);
+        if(selected===mcqData[i].answer)mcqCorrect++;
+        radios.forEach((radio,j)=>{
+          radio.disabled=true;
+          if(j===mcqData[i].answer)radio.parentElement.classList.add('is-right');
+          else if(j===selected)radio.parentElement.classList.add('is-wrong');
+        });
+      });
+      mcqs.classList.add('graded');
+      const feedback=document.getElementById('blankFeedback'); feedback.replaceChildren();
+      blankInputs.forEach((input,i)=>{
+        const isCorrect=normalize(input.value)===normalize(blanks[i].answer);
+        if(isCorrect)blankCorrect++;
+        input.classList.add(isCorrect?'is-right':'is-wrong');input.readOnly=true;
+        const li=document.createElement('li');
+        const strong=document.createElement('strong');strong.textContent=`(${i+1}) ${blanks[i].answer}。`;
+        li.append(strong,document.createTextNode(blanks[i].why));feedback.append(li);
+      });
+      document.getElementById('summary').classList.add('graded');
+      document.getElementById('totalScore').textContent=`${mcqCorrect*2+blankCorrect} / 15`;
+      document.getElementById('resultTitle').textContent=mcqCorrect===5&&blankCorrect===5?'全部答对！':'批改完成';
+      document.getElementById('resultDetail').textContent=`Task 1：${mcqCorrect}/5 题（${mcqCorrect*2}/10 分） · Task 3：${blankCorrect}/5 题（${blankCorrect}/5 分）`;
+      result.classList.add('show');
+      document.getElementById('submit').disabled=true;
+      document.getElementById('submit').style.opacity='.55';
+      result.scrollIntoView({behavior:'smooth',block:'start'});
+      if(window.JulyLesson3) void window.JulyLesson3.submit({
+        activity:'reading',
+        choices:mcqData.map((_,i)=>Number(document.querySelector(`input[name="q${i}"]:checked`).value)),
+        blanks:blankInputs.map(input=>input.value)
+      });
+    });
+    document.getElementById('retry').addEventListener('click',()=>{
+      graded=false;result.classList.remove('show');message.textContent='';
+      document.getElementById('submit').disabled=false;document.getElementById('submit').style.opacity='';
+      renderQuestions();
+      document.getElementById('summary').classList.remove('graded');
+      document.getElementById('blankFeedback').replaceChildren();
+      blankInputs.forEach(input=>{input.value='';input.readOnly=false;input.classList.remove('is-right','is-wrong')});
+      document.getElementById('task1Head').scrollIntoView({behavior:'smooth',block:'start'});
+    });
+    renderQuestions();
+  </script>
+  <script src="./lesson3-bridge.js"></script>
+</body>
+</html>
