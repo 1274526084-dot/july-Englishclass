@@ -10,6 +10,7 @@ const CLASS_TO_MAJOR = {
 const TASKS = {
   train: {
     page: "writing-train.html",
+    entryLabel: "机车",
     major: "机车运用与维修",
     scene: "机车实训室里的一次帮助",
     image: "./writing-train.jpg",
@@ -42,6 +43,7 @@ const TASKS = {
   },
   signal: {
     page: "writing-signal.html",
+    entryLabel: "城轨信号",
     major: "城轨信号",
     scene: "线路模拟中的一份支持",
     image: "./writing-signal.jpg",
@@ -74,6 +76,7 @@ const TASKS = {
   },
   energy: {
     page: "writing-energy.html",
+    entryLabel: "储能技术",
     major: "储能技术",
     scene: "认真询问带来的安心",
     image: "./writing-energy.jpg",
@@ -139,9 +142,9 @@ function initHome() {
     const route = routeForClass(profile.className);
     if (route) { window.location.replace(route); return; }
     const form = document.getElementById('profile-form'); form.replaceChildren();
-    document.getElementById('entry-title').textContent = profile.name + '，请选择一个专业写作场景';
+    document.getElementById('entry-title').textContent = profile.name + '，请选择写作专业';
     Object.entries(TASKS).forEach(([major, task]) => {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-primary'; button.style.margin = '8px'; button.textContent = task.scene;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-primary'; button.style.margin = '8px'; button.textContent = task.entryLabel;
       button.onclick = () => { saveJSON(PROFILE_KEY, { ...profile, writingMajor: major }); location.href = task.page; }; form.appendChild(button);
     }); return;
   }
