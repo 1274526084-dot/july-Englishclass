@@ -196,6 +196,7 @@
           <div class="example-layout">
             <div class="example-art-frame">
               <img class="example-photo" id="example-photo" alt="" hidden>
+              <span class="example-image-error" id="example-image-loading" hidden>场景图片加载中…</span>
               <span class="example-image-error" id="example-image-error" hidden>配图暂时未能加载，请刷新后再试。</span>
             </div>
             <div class="example-copy">
@@ -256,17 +257,26 @@
       overcome: "工程师建设铁路桥梁插画"
     };
     const photoMap = {
-      begin: "game-images/begin.png",
-      forbid: "game-images/forbid.png",
-      arise: "game-images/arise.png",
-      overtake: "game-images/overtake.png",
-      choose: "game-images/choose.png",
-      ring: "game-images/ring.png",
-      withdraw: "game-images/withdraw.png",
-      speak: "game-images/speak.png",
-      take: "game-images/take.png",
-      overcome: "game-images/overcome.png"
+      begin: "game-images/begin.jpg",
+      forbid: "game-images/forbid.jpg",
+      arise: "game-images/arise.jpg",
+      overtake: "game-images/overtake.jpg",
+      choose: "game-images/choose.jpg",
+      ring: "game-images/ring.jpg",
+      withdraw: "game-images/withdraw.jpg",
+      speak: "game-images/speak.jpg",
+      take: "game-images/take.jpg",
+      overcome: "game-images/overcome.jpg"
     };
+    const photoUrl = (verb) => `${photoMap[verb]}?v=20261007-fast`;
+    const preparedPhotos = new Map();
+    function preloadScene(question) {
+      if (!question || preparedPhotos.has(question.verb)) return;
+      const image = new Image();
+      image.decoding = "async";
+      image.src = photoUrl(question.verb);
+      preparedPhotos.set(question.verb, image);
+    }
 
     const $ = (id) => document.getElementById(id);
     const shuffle = (list) => {
@@ -312,6 +322,25 @@
       $("verb-meaning").textContent = `中文含义：${q.meaning}`;
       $("verb-meaning").hidden = true;
       $("example").hidden = true;
+      const photo = $("example-photo");
+      const imageLoading = $("example-image-loading");
+      const imageError = $("example-image-error");
+      photo.hidden = true;
+      imageLoading.hidden = true;
+      imageError.hidden = true;
+      photo.alt = artLabels[q.verb].replace("插画", "场景配图");
+      photo.onload = () => {
+        if (round[index]?.verb !== q.verb || !answered) return;
+        imageLoading.hidden = true;
+        photo.hidden = false;
+      };
+      photo.onerror = () => {
+        if (round[index]?.verb !== q.verb || !answered) return;
+        imageLoading.hidden = true;
+        imageError.hidden = false;
+      };
+      photo.src = photoUrl(q.verb);
+      preloadScene(round[index + 1]);
       $("target-text").textContent = q.target;
       $("feedback").textContent = "";
       $("feedback").className = "feedback";
@@ -370,13 +399,11 @@
       $("example-answer").textContent = q.answer;
       $("example-after").textContent = q.example.after;
       const photo = $("example-photo");
+      const imageLoading = $("example-image-loading");
       const imageError = $("example-image-error");
-      photo.hidden = true;
-      imageError.hidden = true;
-      photo.alt = artLabels[q.verb].replace("插画", "场景配图");
-      photo.onload = () => { if (round[index]?.verb === q.verb) photo.hidden = false; };
-      photo.onerror = () => { if (round[index]?.verb === q.verb) imageError.hidden = false; };
-      photo.src = `${photoMap[q.verb]}?v=20261007-photos`;
+      if (photo.complete && photo.naturalWidth > 0) photo.hidden = false;
+      else if (photo.complete) imageError.hidden = false;
+      else imageLoading.hidden = false;
       $("example-translation").textContent = `中文：${q.example.zh}`;
       $("example-note").textContent = q.example.note ? `词语注释：${q.example.note}` : "";
       $("example-note").hidden = !q.example.note;
