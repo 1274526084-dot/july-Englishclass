@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#223529">
-  <meta name="july-release" content="u3-realtime-20261112-v1">
+  <meta name="july-release" content="u3-sentence-20261125-v1">
   <title>Unit 3 · Talking Face to Face | July English Lab</title>
   <style>
 :root {
@@ -499,12 +499,12 @@ progress { accent-color: #497b56; }
     try { localStorage.setItem(prefix + state.owner, JSON.stringify(state)); }
     catch { note = '浏览器无法保存进度，请保持本页打开并完成两个情境。'; }
   }
-  async function request(action, data = {}) {
+  async function request(action, data = {}, signal) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 55000);
     try {
       const response = await fetch(API, {method:'POST', headers:{'content-type':'application/json'},
-        body:JSON.stringify({ action, ...data }), signal:controller.signal });
+        body:JSON.stringify({ action, ...data }), signal:signal || controller.signal });
       const value = await response.json();
       if (!response.ok || value.ok === false) {
         const error = new Error(value.error || '同步暂时失败，请重试。');
@@ -512,7 +512,7 @@ progress { accent-color: #497b56; }
       }
       return value;
     } catch(error) {
-      if (error.name === 'AbortError') throw new Error('同步超时，回答保留在本设备，请点重试。');
+      if (!signal && error.name === 'AbortError') throw new Error('同步超时，回答保留在本设备，请点重试。');
       throw error;
     } finally { clearTimeout(timer); }
   }
@@ -628,12 +628,14 @@ progress { accent-color: #497b56; }
   window.addEventListener('online', () => void flush());
   document.addEventListener('visibilitychange', () => { if (!document.hidden && lease && !active()) changed(); });
   window.Unit3Archive = {complete, refresh:render,
-    async speechTicket(sceneId) {
+    async recognizeSpeech(sceneId, audio, signal) {
       if (!demo && !active()) { changed(); throw new Error('请重新确认课堂身份后再说话。'); }
       const token = demo ? '' : lease.token;
-      const result = await request('unit3RealtimeTicket', {sceneId,...(demo ? {demo:true} : {studentToken:token})});
+      const result = await request('unit3SentenceRecognition', {
+        sceneId, audio, ...(demo ? {demo:true} : {studentToken:token}),
+      }, signal);
       if (!demo && (!active() || lease.token !== token)) throw new Error('课堂身份已变化，请重新开始。');
-      return result.speech;
+      return result.transcript;
     }, start() { if (demo || active()) return true; changed(); return false; }};
   load(); render();
   if (!lease && !demo) showLogin();
@@ -647,135 +649,192 @@ progress { accent-color: #497b56; }
 }());
 
 </script>
+<script src="unit3-lamejs-1.2.7.js"></script>
 <script>
-/* Streaming 16 kHz PCM; no browser speech service or secret key is required. */
-(function(root){
+/* In-memory microphone capture for Tencent Cloud sentence recognition. */
+(function (root) {
   'use strict';
+  const MAX_SECONDS = 24;
+  const MAX_BYTES = 16000 * 2 * MAX_SECONDS;
+
+  // Convert microphone samples to mono 16 kHz PCM, retaining the edge sample
+  // across input blocks so AudioWorklet and ScriptProcessor produce valid WAV.
   class PCMStream {
-    constructor(sampleRate,emit){this.rate=sampleRate/16000;this.emit=emit;this.tail=new Float32Array(0);this.position=0;this.packet=new Int16Array(3200);this.length=0;}
-    push(input){
-      const all=new Float32Array(this.tail.length+input.length);all.set(this.tail);all.set(input,this.tail.length);
-      while(this.position+1<all.length){
-        const i=Math.floor(this.position),f=this.position-i;
-        const n=Math.max(-1,Math.min(1,all[i]*(1-f)+all[i+1]*f));
-        this.packet[this.length++]=Math.round(n*(n<0?32768:32767));this.position+=this.rate;
-        if(this.length===3200){this.emit(this.packet.buffer);this.packet=new Int16Array(3200);this.length=0;}
+    constructor(sampleRate, emit) {
+      this.rate = sampleRate / 16000;
+      this.emit = emit;
+      this.tail = new Float32Array(0);
+      this.position = 0;
+      this.packet = new Int16Array(1600);
+      this.length = 0;
+    }
+    push(input) {
+      const all = new Float32Array(this.tail.length + input.length);
+      all.set(this.tail);
+      all.set(input, this.tail.length);
+      while (this.position + 1 < all.length) {
+        const i = Math.floor(this.position);
+        const fraction = this.position - i;
+        const sample = Math.max(-1, Math.min(1, all[i] * (1 - fraction) + all[i + 1] * fraction));
+        this.packet[this.length++] = Math.round(sample * (sample < 0 ? 32768 : 32767));
+        this.position += this.rate;
+        if (this.length === this.packet.length) {
+          this.emit(this.packet.buffer);
+          this.packet = new Int16Array(1600);
+          this.length = 0;
+        }
       }
-      const used=Math.min(Math.floor(this.position),Math.max(0,all.length-1));this.tail=all.slice(used);this.position-=used;
+      const used = Math.min(Math.floor(this.position), Math.max(0, all.length - 1));
+      this.tail = all.slice(used);
+      this.position -= used;
     }
-    flush(){if(this.length){this.emit(this.packet.slice(0,this.length).buffer);this.length=0;}}
+    flush() {
+      if (this.length) this.emit(this.packet.slice(0, this.length).buffer);
+      this.length = 0;
+    }
   }
-  function asrError(code,message){
-    const map={4002:'实时语音鉴权失败，请重新连接。',4003:'腾讯云实时语音识别尚未开通。',4004:'实时识别资源包不足，请联系老师处理。',4005:'语音识别账户欠费，请联系老师处理。',4006:'同时练习的人较多，请稍后再试。',4007:'音频格式错误，请重新开始。',4008:'实时音频中断，请重新开始。'};
-    return new Error(map[code] || `实时识别连接异常（${code}），请重新开始。`);
+
+  function wav(buffers, size) {
+    const out = new Uint8Array(44 + size);
+    const view = new DataView(out.buffer);
+    out.set([82, 73, 70, 70], 0); // RIFF
+    view.setUint32(4, 36 + size, true);
+    out.set([87, 65, 86, 69, 102, 109, 116, 32], 8); // WAVEfmt
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, 16000, true);
+    view.setUint32(28, 32000, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    out.set([100, 97, 116, 97], 36); // data
+    view.setUint32(40, size, true);
+    let offset = 44;
+    for (const buffer of buffers) {
+      out.set(new Uint8Array(buffer), offset);
+      offset += buffer.byteLength;
+    }
+    return new Blob([out], { type: 'audio/wav' });
   }
-  function wav(buffers){
-    const length=buffers.reduce((sum,b)=>sum+b.byteLength,0),out=new ArrayBuffer(44+length),v=new DataView(out);
-    const word=(offset,s)=>{for(let i=0;i<s.length;i++)v.setUint8(offset+i,s.charCodeAt(i));};
-    word(0,'RIFF');v.setUint32(4,36+length,true);word(8,'WAVE');word(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,16000,true);v.setUint32(28,32000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);word(36,'data');v.setUint32(40,length,true);
-    let offset=44;for(const buffer of buffers){new Uint8Array(out,offset,buffer.byteLength).set(new Uint8Array(buffer));offset+=buffer.byteLength;}
-    return new Blob([out],{type:'audio/wav'});
-  }
-  function start({ticket,onState,onText,onFinish,onError}){
-    let stream,context,source,processor,gain,socket,workletUrl,resampler;
-    let cancelled=false,done=false,stopping=false,ready=false,endSent=false,connectTimer,limitTimer,finalTimer;
-    const segments=new Map(),audio=[];
-    function text(){return [...segments.entries()].sort((a,b)=>a[0]-b[0]).map(([,text])=>text).filter(Boolean).join(' ').trim();}
-    function releaseMic(){
-      processor?.disconnect();source?.disconnect();gain?.disconnect();
-      if(processor){processor.onaudioprocess=null;if(processor.port)processor.port.onmessage=null;}
-      stream?.getTracks().forEach(track=>track.stop());
-      if(context && context.state!=='closed') void context.close().catch(()=>{});
-      if(workletUrl){URL.revokeObjectURL(workletUrl);workletUrl=null;}
+
+  function start({ onState, onFinish, onError }) {
+    let stream, context, source, processor, gain, workletUrl, resampler;
+    let openTimer, stopTimer, flushTimer, size = 0;
+    let ended = false, stopping = false, listening = false;
+    const buffers = [];
+
+    function finish(error, cancelled = false) {
+      if (ended) return;
+      ended = true;
+      clearTimeout(openTimer);
+      clearTimeout(stopTimer);
+      clearTimeout(flushTimer);
+      stream?.getTracks().forEach(track => track.stop());
+      processor?.disconnect();
+      source?.disconnect();
+      gain?.disconnect();
+      if (processor?.port) processor.port.onmessage = null;
+      if (processor && !processor.port) processor.onaudioprocess = null;
+      if (context && context.state !== 'closed') void context.close().catch(() => {});
+      if (workletUrl) URL.revokeObjectURL(workletUrl);
+      if (cancelled) return;
+      if (error || size < 8000) onError(error || new Error('没有录到完整的英文，请再试一次。'));
+      else onFinish(wav(buffers, size));
     }
-    function finish(error){
-      if(done)return;done=true;clearTimeout(connectTimer);clearTimeout(limitTimer);clearTimeout(finalTimer);
-      releaseMic();if(socket && socket.readyState<2)socket.close();
-      if(cancelled)return;
-      const transcript=text();
-      if(error)onError(error,transcript,audio.length?wav(audio):null);
-      else onFinish(transcript,audio.length?wav(audio):null);
+
+    function append(buffer) {
+      const remaining = MAX_BYTES - size;
+      if (ended || remaining <= 0 || !(buffer instanceof ArrayBuffer)) return;
+      const data = buffer.byteLength > remaining ? buffer.slice(0, remaining) : buffer;
+      buffers.push(data);
+      size += data.byteLength;
+      if (size === MAX_BYTES && !stopping && listening) stop();
     }
-    function send(buffer){
-      if(!ready||done||cancelled||socket?.readyState!==1)return;
-      if(socket.bufferedAmount>64000){finish(new Error('网络上传跟不上录音，请检查网络后重新开始。'));return;}
-      audio.push(buffer.slice(0));socket.send(buffer);
-    }
-    async function audioGraph(){
-      source=context.createMediaStreamSource(stream);gain=context.createGain();gain.gain.value=0;gain.connect(context.destination);
-      if(context.audioWorklet && root.AudioWorkletNode){
-        const code=`class Unit3PCM extends AudioWorkletProcessor{constructor(){super();this.encoder=new (${PCMStream.toString()})(sampleRate,b=>this.port.postMessage(b,[b]));this.port.onmessage=e=>{if(e.data==='flush'){this.encoder.flush();this.port.postMessage('flushed');}};}process(inputs){const c=inputs[0]?.[0];if(c)this.encoder.push(c);return true;}}registerProcessor('unit3-pcm',Unit3PCM);`;
-        workletUrl=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
-        await context.audioWorklet.addModule(workletUrl);
-        if(done||cancelled||stopping)return;
-        processor=new AudioWorkletNode(context,'unit3-pcm');
-        processor.port.onmessage=event=>{if(event.data==='flushed'){endStream();return;}send(event.data);};
-      }else{
-        resampler=new PCMStream(context.sampleRate,send);processor=context.createScriptProcessor(2048,1,1);
-        processor.onaudioprocess=event=>{if(!stopping)resampler.push(event.inputBuffer.getChannelData(0));};
+
+    function stop() {
+      if (ended || stopping) return;
+      if (!listening) { finish(null, true); return; }
+      stopping = true;
+      clearTimeout(stopTimer);
+      onState('finishing');
+      if (processor.port) {
+        flushTimer = setTimeout(() => finish(), 400);
+        processor.port.postMessage('flush');
+      } else {
+        resampler.flush();
+        finish();
       }
-      source.connect(processor);processor.connect(gain);await context.resume();
     }
-    function endStream(){
-      if(done||cancelled||endSent)return;
-      endSent=true;clearTimeout(finalTimer);
-      releaseMic();
-      if(socket?.readyState===1){socket.send(JSON.stringify({type:'end'}));finalTimer=setTimeout(()=>finish(new Error('识别收尾超时，已有文字已保留，请核对后重试。')),8000);}
-      else finish(new Error('实时语音连接已断开。'));
-    }
-    function stop(){
-      if(done||cancelled||stopping)return;
-      if(!ready){cancel();return;}
-      stopping=true;clearTimeout(limitTimer);onState('finishing');
-      if(processor?.port){processor.port.postMessage('flush');finalTimer=setTimeout(endStream,500);}
-      else {resampler?.flush();endStream();}
-    }
-    function cancel(){cancelled=true;finish();}
-    // The microphone and AudioContext are requested within the original click.
-    (async()=>{
-      try{
-        if(!navigator.mediaDevices?.getUserMedia)throw new Error('请在浏览器中打开 HTTPS 网页，并允许麦克风。');
-        const Context=root.AudioContext||root.webkitAudioContext;
-        if(!Context)throw new Error('当前浏览器没有提供音频采集功能，请使用新版 Edge 或 Chrome。');
-        onState('connecting');context=new Context();void context.resume().catch(()=>{});
-        connectTimer=setTimeout(()=>finish(new Error('实时识别连接超时，请检查网络后重新开始。')),20000);
-        const mic=navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(value=>{
-          if(done||cancelled){value.getTracks().forEach(track=>track.stop());return null;}stream=value;return value;
-        });
-        const [_,issued]=await Promise.all([mic,ticket()]);
-        if(done||cancelled)return;
-        const target=new URL(issued.url);
-        if(target.protocol!=='wss:'||target.hostname!=='asr.cloud.tencent.com'||!target.pathname.startsWith('/asr/v2/'))throw new Error('实时语音连接地址无效。');
-        socket=new WebSocket(issued.url);
-        socket.onmessage=async event=>{
-          if(done||cancelled)return;
-          try{
-            const message=JSON.parse(event.data);
-            if(message.code!==0){finish(asrError(message.code,message.message));return;}
-            if(!ready){
-              ready=true;clearTimeout(connectTimer);await audioGraph();
-              if(done||cancelled)return;onState('listening');limitTimer=setTimeout(stop,60000);
+
+    (async () => {
+      try {
+        const Context = root.AudioContext || root.webkitAudioContext;
+        if (!navigator.mediaDevices?.getUserMedia || !Context) {
+          throw new Error('当前浏览器无法录音。请用手机浏览器打开此网页并允许访问麦克风。');
+        }
+        onState('connecting');
+        context = new Context();
+        void context.resume().catch(() => {});
+        openTimer = setTimeout(() => finish(new Error('等待麦克风超时，请检查权限后重试。')), 20000);
+        const acquired = await navigator.mediaDevices.getUserMedia({ audio: {
+          channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+        } });
+        if (ended) { acquired.getTracks().forEach(track => track.stop()); return; }
+        stream = acquired;
+        source = context.createMediaStreamSource(stream);
+        gain = context.createGain();
+        gain.gain.value = 0;
+        if (context.audioWorklet && root.AudioWorkletNode) {
+          const module = `class Unit3PCM extends AudioWorkletProcessor {
+            constructor() {
+              super();
+              this.encoder = new (${PCMStream.toString()})(sampleRate, b => this.port.postMessage(b, [b]));
+              this.port.onmessage = () => { this.encoder.flush(); this.port.postMessage('flushed'); };
             }
-            if(message.result && Number.isInteger(message.result.index)){
-              segments.set(message.result.index,message.result.voice_text_str||'');const value=text();if(value)onText(value);
+            process(inputs) {
+              const channel = inputs[0]?.[0];
+              if (channel) this.encoder.push(channel);
+              return true;
             }
-            if(message.final===1)finish();
-          }catch(error){finish(error);}
-        };
-        socket.onerror=()=>finish(new Error('无法连接腾讯云实时识别，请检查网络后重新开始。'));
-        socket.onclose=()=>{if(!done)finish(new Error('实时识别连接中断，已有文字已保留。'));};
-      }catch(error){
-        if(error.name==='NotAllowedError')error=new Error('麦克风权限未允许，请在地址栏的网站权限中开启麦克风。');
-        else if(error.name==='NotFoundError')error=new Error('没有找到麦克风，请连接或选择可用的麦克风。');
+          }
+          registerProcessor('unit3-pcm', Unit3PCM);`;
+          workletUrl = URL.createObjectURL(new Blob([module], { type: 'text/javascript' }));
+          try {
+            await context.audioWorklet.addModule(workletUrl);
+            if (ended) return;
+            processor = new AudioWorkletNode(context, 'unit3-pcm');
+            processor.port.onmessage = ({ data }) => data === 'flushed' ? finish() : append(data);
+          } catch (error) {
+            if (ended || !context.createScriptProcessor) throw error;
+          }
+        }
+        if (!processor) {
+          resampler = new PCMStream(context.sampleRate, append);
+          processor = context.createScriptProcessor(2048, 1, 1);
+          processor.onaudioprocess = event => {
+            if (!stopping && !ended) resampler.push(event.inputBuffer.getChannelData(0));
+          };
+        }
+        source.connect(processor);
+        processor.connect(gain);
+        gain.connect(context.destination);
+        await context.resume();
+        if (ended) return;
+        clearTimeout(openTimer);
+        listening = true;
+        onState('listening');
+        stopTimer = setTimeout(stop, MAX_SECONDS * 1000);
+      } catch (error) {
+        if (error.name === 'NotAllowedError') error = new Error('麦克风权限未允许，请在浏览器的网站权限中开启麦克风。');
+        if (error.name === 'NotFoundError') error = new Error('没有找到可用的麦克风。');
         finish(error);
       }
     })();
-    return {stop,cancel};
+    return { stop, cancel: () => finish(null, true) };
   }
-  const api={start,PCMStream,asrError};
-  if(typeof module==='object'&&module.exports)module.exports=api;else root.Unit3Realtime=api;
-})(typeof window==='object'?window:globalThis);
 
+  root.Unit3Capture = { start, MAX_SECONDS };
+})(window);
 </script>
 <script>
 (function () {
@@ -789,7 +848,6 @@ progress { accent-color: #497b56; }
   const sessions = new Map();
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const cloudOrigin = ['http://localhost:4173', 'http://localhost:5173', 'https://1274526084-dot.github.io'].includes(location.origin);
-  const cloudApi = 'https://cloudbase-d3gxxe4l88c3d5907-1431364187.ap-shanghai.app.tcloudbase.com/speakingLabApi';
   let scene = scenes[0];
   let mode = null;
   let session = null;
@@ -851,7 +909,7 @@ progress { accent-color: #497b56; }
     const current = capture;
     capture = null;
     if (current) {
-      current.live?.cancel();
+      current.microphone?.cancel();
       clearTimeout(current.timer);
       if (current.recognizer) current.recognizer.abort();
       if (current.recorder?.state === 'recording') current.recorder.stop();
@@ -937,8 +995,8 @@ progress { accent-color: #497b56; }
   }
 
   function syncPartnerState() {
-    const state = replying ? 'thinking' : capture ? (capture.stopping ? 'finishing' : capture.active ? 'listening' : 'connecting') : voiceSpeaking ? 'speaking' : 'ready';
-    const labels = { thinking: 'Alex 正在回应', listening: '我在听你说', connecting: '正在连接麦克风与识别', finishing: '正在接收最后的识别文字', speaking: 'Alex 正在说', ready: session?.index === listLength() ? '这次聊得不错！' : '轮到你来回答' };
+    const state = replying ? 'thinking' : cloudRequest ? 'transcribing' : capture ? (capture.stopping ? 'finishing' : capture.active ? 'listening' : 'connecting') : voiceSpeaking ? 'speaking' : 'ready';
+    const labels = { thinking: 'Alex 正在回应', listening: '我在听你说', transcribing: '正在转写', connecting: '正在打开麦克风', finishing: '正在结束录音', speaking: 'Alex 正在说', ready: session?.index === listLength() ? '这次聊得不错！' : '轮到你来回答' };
     const studio = practice.querySelector('.studio');
     if (studio) studio.dataset.state = state;
     const status = document.getElementById('partner-status');
@@ -1000,13 +1058,13 @@ progress { accent-color: #497b56; }
         ${action('填入示例，体验回应', 'example')}
       </details>
       <label class="sr-only" for="answer">${isRead ? '我的跟读文字' : '我的英文回答'}</label>
-      <textarea id="answer" lang="en" rows="2" maxlength="500" placeholder="${cloudOrigin ? '点“开始说话”，英文会实时显示…' : '点麦克风说，或在这里输入英文…'}">${escape(session.draft)}</textarea>
+      <textarea id="answer" lang="en" rows="2" maxlength="500" placeholder="${cloudOrigin ? '点“开始说话”，说完后会自动转写…' : '点麦克风说，或在这里输入英文…'}">${escape(session.draft)}</textarea>
       <div class="composer-buttons">
         <button type="button" class="button mic" data-action="speak">${microphone}<span class="mic-label">开始说话</span><span class="listening-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
         <div class="composer-send">${action(isRead ? (result ? '重新评分' : '看看得分') : '发送 →', 'grade', true, !session.draft.trim())}
           ${isRead && result ? action(session.index + 1 === listLength() ? '完成跟读' : '下一句', 'next') : ''}</div>
       </div>
-      ${Recognition ? '<details class="voice-tools"><summary>只录音回听</summary>' + action('开始录音', 'record') + '</details>' : ''}
+      ${(cloudOrigin || Recognition) ? '<details class="voice-tools"><summary>只录音回听</summary>' + action('开始录音', 'record') + '</details>' : ''}
       <div class="recording" id="recording-panel" hidden></div>
       <p class="status" id="voice-status" role="status">${session.draft ? '核对文字后，就可以发送。' : Recognition ? '说完核对文字，再发送。' : cloudOrigin ? '录音后可回听、转写，或直接输入英文。' : '录音后可回听，再填写你的英文回答。'}</p>
     </div>`;
@@ -1113,15 +1171,15 @@ progress { accent-color: #497b56; }
     const voice = practice.querySelector('[data-action="speak"]');
     const local = practice.querySelector('[data-action="record"]');
     if (!voice) return;
-    (voice.querySelector('.mic-label') || voice).textContent = capture?.kind === 'live'
+    (voice.querySelector('.mic-label') || voice).textContent = capture?.kind === 'sentence'
       ? (capture.stopping ? '正在收尾…' : capture.active ? '说完了' : '取消连接') : capture?.kind === 'speech' ? '说完了'
-      : capture?.kind === 'record' && !Recognition ? '停止录音'
+      : capture?.kind === 'record' && !Recognition && !cloudOrigin ? '停止录音'
         : '开始说话';
-    voice.classList.toggle('capturing', capture?.kind === 'live' || capture?.kind === 'speech' || (capture?.kind === 'record' && !Recognition));
-    voice.disabled = !!cloudRequest || !!capture?.stopping || (capture?.kind === 'record' && !!Recognition);
+    voice.classList.toggle('capturing', capture?.kind === 'sentence' || capture?.kind === 'speech' || (capture?.kind === 'record' && !Recognition && !cloudOrigin));
+    voice.disabled = !!cloudRequest || !!capture?.stopping || (capture?.kind === 'record' && (!!Recognition || cloudOrigin));
     if (local) {
       local.textContent = capture?.kind === 'record' ? '停止录音' : '开始录音';
-      local.disabled = !!cloudRequest || capture?.kind === 'speech' || capture?.kind === 'live';
+      local.disabled = !!cloudRequest || capture?.kind === 'speech' || capture?.kind === 'sentence';
     }
     practice.querySelector('[data-action="grade"]').disabled = !!capture || !!cloudRequest || !session.draft.trim();
     practice.querySelector('[data-action="example"]').disabled = !!capture || !!cloudRequest;
@@ -1129,12 +1187,12 @@ progress { accent-color: #497b56; }
   }
 
   function startRecognition() {
-    if (capture?.kind === 'live') {
-      if (!capture.active) { capture.live.cancel(); capture = null; renderCaptureButtons(); announce('已取消连接，可以重新开始。'); }
-      else capture.live.stop();
+    if (capture?.kind === 'sentence') {
+      if (!capture.active) { capture.microphone.cancel(); capture = null; renderCaptureButtons(); announce('已取消连接，可以重新开始。'); }
+      else capture.microphone.stop();
       return;
     }
-    if (cloudOrigin && window.Unit3Realtime) { startRealtimeRecognition(); return; }
+    if (cloudOrigin) { startSentenceRecognition(); return; }
     if (capture?.kind === 'speech') {
       capture.recognizer.stop();
       return;
@@ -1199,18 +1257,36 @@ progress { accent-color: #497b56; }
     }
   }
 
-  function startRealtimeRecognition() {
-    if(capture || cloudRequest || replying)return;
-    stopVoice();disposeRecording();renderRecording();
-    const job={kind:'live',active:false,stopping:false,live:null};capture=job;renderCaptureButtons();
-    const keepRecording=blob=>{if(blob){disposeRecording();recording=blob;recordingUrl=URL.createObjectURL(blob);renderRecording();}};
-    job.live=window.Unit3Realtime.start({
-      ticket:()=>window.Unit3Archive.speechTicket(scene.id),
-      onState(state){if(capture!==job)return;job.active=state==='listening';job.stopping=state==='finishing';renderCaptureButtons();
-        announce(state==='listening'?'正在实时识别，说话时文字会持续出现。说完点“说完了”。':state==='finishing'?'正在接收最后的识别文字…':'正在连接实时识别；首次使用请允许麦克风。');},
-      onText(text){if(capture===job)updateDraft(text,'cloud');},
-      onFinish(text,blob){if(capture!==job)return;capture=null;if(text)updateDraft(text,'cloud');keepRecording(blob);renderCaptureButtons();announce(text?'识别完成。请核对文字，然后提交。':'没有听到清楚的英文，请检查麦克风后再试。',!text);},
-      onError(error,text,blob){if(capture!==job)return;capture=null;if(text)updateDraft(text,'cloud');keepRecording(blob);renderCaptureButtons();announce(error.message,true);},
+  function startSentenceRecognition() {
+    if (capture || cloudRequest || replying || !window.Unit3Archive?.start()) return;
+    stopVoice();
+    disposeRecording();
+    renderRecording();
+    const job = { kind:'sentence', active:false, stopping:false, microphone:null };
+    capture = job;
+    job.microphone = window.Unit3Capture.start({
+      onState(state) {
+        if (capture !== job) return;
+        job.active = state === 'listening';
+        job.stopping = state === 'finishing';
+        renderCaptureButtons();
+        announce(state === 'listening'
+          ? '正在录音。说完点“说完了”，最长 24 秒。'
+          : state === 'finishing' ? '正在结束录音…' : '正在打开麦克风…');
+      },
+      onFinish(blob) {
+        if (capture !== job) return;
+        capture = null;
+        recording = blob;
+        recordingUrl = URL.createObjectURL(blob);
+        void recognizeRecording();
+      },
+      onError(error) {
+        if (capture !== job) return;
+        capture = null;
+        renderCaptureButtons();
+        announce(error.message, true);
+      },
     });
   }
 
@@ -1258,9 +1334,9 @@ progress { accent-color: #497b56; }
       };
       recorder.start();
       job.active = true;
-      syncPartnerState();
-      job.timer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 25000);
-      announce('正在录音。说完点停止，最长 25 秒。');
+      renderCaptureButtons();
+      job.timer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 24000);
+      announce('正在录音。说完点停止，最长 24 秒。');
     } catch {
       if (capture !== job) return;
       job.stream?.getTracks().forEach(track => track.stop());
@@ -1283,7 +1359,7 @@ progress { accent-color: #497b56; }
     }
     const sampleRate = 16000;
     const count = Math.ceil(original.duration * sampleRate);
-    if (!count || count > sampleRate * 30) throw new Error('请录制一段不超过 25 秒的英文。');
+    if (!count || count > sampleRate * 25) throw new Error('请录制一段不超过 24 秒的英文。');
     const offline = new OfflineContext(1, count, sampleRate);
     const source = offline.createBufferSource();
     source.buffer = original;
@@ -1324,34 +1400,33 @@ progress { accent-color: #497b56; }
     const timer = setTimeout(() => controller.abort(), 35000);
     renderRecording();
     renderCaptureButtons();
-    announce('正在把本段录音交给腾讯云转写。');
+    announce('正在转写本段英文录音…');
     try {
-      const wav = await toWav16k(recording);
+      const wav = recording.type === 'audio/wav' ? recording : await toWav16k(recording);
+      if (!window.lamejs?.Mp3Encoder) throw new Error('录音处理组件暂未加载，请刷新后重试。');
+      const pcm = new Int16Array(await wav.arrayBuffer(), 44);
+      const english = pcm.subarray(0, 16000 * window.Unit3Capture.MAX_SECONDS);
+      const encoder = new window.lamejs.Mp3Encoder(1, 16000, 16);
+      const parts = [];
+      for (let frame = 0; frame < english.length; frame += 576) {
+        const bytes = encoder.encodeBuffer(english.subarray(frame, frame + 576));
+        if (bytes.length) parts.push(bytes);
+      }
+      parts.push(encoder.flush());
+      const mp3 = new Blob(parts, { type:'audio/mpeg' });
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result).split(',')[1]);
         reader.onerror = () => reject(new Error('暂时无法读取录音。'));
-        reader.readAsDataURL(wav);
+        reader.readAsDataURL(mp3);
       });
-      const uploadId = crypto.randomUUID();
-      const totalChunks = Math.ceil(base64.length / 60000);
-      let payload;
-      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-        const response = await fetch(cloudApi, {
-          method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({
-            action: 'recognizeChunk', uploadId, sceneId: 'club', round: Math.min(session.index + 1, 3),
-            type: 'audio/wav', chunkIndex, totalChunks, data: base64.slice(chunkIndex * 60000, (chunkIndex + 1) * 60000),
-          }),
-        });
-        payload = await response.json();
-        if (!response.ok || !payload.ok) throw new Error(payload.error || '腾讯云转写暂时不可用。');
-      }
+      if (current !== epoch || controller.signal.aborted) return;
+      const transcript = await window.Unit3Archive.recognizeSpeech(scene.id, base64, controller.signal);
       if (current !== epoch) return;
-      if (!payload?.transcript?.trim()) throw new Error('没有收到英文识别结果。');
-      if (session.draft === draftBefore) updateDraft(payload.transcript.trim(), 'cloud');
-      announce(session.draft === draftBefore || session.source === 'cloud'
-        ? '转写完成。检查文字后提交。' : '转写已完成，保留了你刚才填写的文字。');
+      if (!transcript?.trim()) throw new Error('没有听清这段英文，请再试一次。');
+      const unchanged = session.draft === draftBefore;
+      if (unchanged) updateDraft(transcript.trim(), 'cloud');
+      announce(unchanged ? '识别完成。请核对文字，然后提交。' : '识别完成，保留了你刚才修改的文字。');
     } catch (error) {
       if (current === epoch) announce((error.name === 'AbortError' ? '转写超时。' : error.message) + ' 可以回听录音，再手动填写英文。', true);
     } finally {
