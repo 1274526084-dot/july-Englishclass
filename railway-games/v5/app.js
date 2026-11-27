@@ -14,7 +14,6 @@ window.railwayGame={music:new URL("railway-games/v5/audio/spring-shift.mp3",loca
   let pending = null;
   let blocked = false;
   let revision = 0;
-  music.src = window.railwayGame.music;
   music.volume = .74;
 
   function refreshLabel() {
@@ -42,6 +41,7 @@ window.railwayGame={music:new URL("railway-games/v5/audio/spring-shift.mp3",loca
   }
 
   function enableMusic() {
+    if (!music.hasAttribute('src')) music.src = window.railwayGame.music;
     enabled = true;
     blocked = false;
     syncMusic();
